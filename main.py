@@ -2,7 +2,7 @@
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification
 from transformers import RobertaTokenizer, RobertaForSequenceClassification
 from torch.utils.data.dataset import random_split
 # import jsonlines
@@ -20,9 +20,12 @@ if __name__ == '__main__':
     # POLITENESS JUDGE
 
     # load tokenizer and model weights
-    classifier_tokenizer = RobertaTokenizer.from_pretrained('SkolkovoInstitute/roberta_toxicity_classifier')
-    toxicity_clasifier_model = RobertaForSequenceClassification.from_pretrained(
-        'SkolkovoInstitute/roberta_toxicity_classifier')
+    # classifier_tokenizer = RobertaTokenizer.from_pretrained('SkolkovoInstitute/roberta_toxicity_classifier')
+    #toxicity_clasifier_model = RobertaForSequenceClassification.from_pretrained(
+    #    'SkolkovoInstitute/roberta_toxicity_classifier')
+
+    classifier_tokenizer = AutoTokenizer.from_pretrained("facebook/roberta-hate-speech-dynabench-r4-target")
+    toxicity_classifier_model = AutoModelForSequenceClassification.from_pretrained("facebook/roberta-hate-speech-dynabench-r4-target").to(device)
 
     data_path = 'data/'
     dataset = pd.read_csv(data_path + 'paradetox.tsv', sep='\t')
@@ -47,7 +50,7 @@ if __name__ == '__main__':
     num_epochs = 1
 
     train_on_paradetox(student_model=student_model,
-                       judge_model=toxicity_clasifier_model,
+                       judge_model=toxicity_classifier_model,
                        tokenizer=student_tokenizer,
                        judge_tokenizer=classifier_tokenizer,
                        optimizer=optimizer,
