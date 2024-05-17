@@ -60,12 +60,13 @@ def evaluate(model, test_dataloader, device):
     model.train()
 
 
-def calculate_toxicity_score(judge_model, classifier_tokenizer, output_sequence):
+def calculate_toxicity_score(judge_model, classifier_tokenizer, output_sequence, device):
     '''
   Usess a judge model to give a politeness score to the given sequence.
   '''
     # Tokenizing user the judge tokenizer
-    judge_input = classifier_tokenizer.encode(output_sequence, return_tensors='pt')
+    # TODO: need to check if we should bring judge_input back to device here or put classifier_tokenizer in device before
+    judge_input = classifier_tokenizer.encode(output_sequence, return_tensors='pt').to(device)
 
     # NOTE: This is a toy method because I did not find any pretrained politeness classifier!
     politeness_distribution = torch.softmax(judge_model(judge_input).logits, dim=-1)[0]
@@ -81,7 +82,8 @@ def compute_rl_loss(judge_model,
                     sampled_seq,
                     gold,
                     lambda_tox,
-                    lambda_bert):
+                    lambda_bert,
+                    device):
     '''
   Computes the reinforcement learning loss, it is composed of two parts:
 
@@ -92,9 +94,9 @@ def compute_rl_loss(judge_model,
 
     # Computing politeness scores for the greedy and sampled sentence
     g_toxicity_scores = torch.tensor(
-        [calculate_toxicity_score(judge_model, judge_tokenizer, seq) for seq in greedy_seq])
+        [calculate_toxicity_score(judge_model, judge_tokenizer, seq, device) for seq in greedy_seq])
     s_toxicity_scores = torch.tensor(
-        [calculate_toxicity_score(judge_model, judge_tokenizer, seq) for seq in sampled_seq])
+        [calculate_toxicity_score(judge_model, judge_tokenizer, seq, device) for seq in sampled_seq])
 
     # Rewarding if the sampled sentence is better
     tox_rewards = s_toxicity_scores - g_toxicity_scores
@@ -234,7 +236,8 @@ def train_on_paradetox(student_model,
                                       s_output_sequences,
                                       gold_sequences,
                                       lambda_tox,
-                                      lambda_bert)
+                                      lambda_bert,
+                                      device)
 
             # Computing total loss (RL + ML)
             full_loss = alpha * rl_loss + ml_loss
