@@ -2,6 +2,9 @@ import torch
 import numpy as np
 from torch.utils.data import TensorDataset
 from bert_score import score
+import os
+import shutil
+
 
 
 def format_data(max_length, tokenizer, dataset):
@@ -174,11 +177,17 @@ def train_on_paradetox(student_model,
                        alpha,
                        device,
                        lambda_tox,
-                       lambda_bert):
+                       lambda_bert,
+                       weights_dir='weights'):
     ''' 
     Trains a model on the dataset using both Maximum Likelihood and 
     Reinforcement Learning losses.
     '''
+
+    if os.path.exists(weights_dir):
+        shutil.rmtree(weights_dir)
+    os.makedirs(weights_dir)
+
     for epoch in range(num_epochs):
         # Preparing for training
         student_model.train()
@@ -236,6 +245,9 @@ def train_on_paradetox(student_model,
             optimizer.zero_grad()
 
             total_loss += full_loss.item()
+
+        # Save model weights
+        torch.save(student_model.state_dict(), "./" + weights_dir + '/epoch' + str(epoch) + '.pt')
 
         average_loss = total_loss / len(dataloader)
         print(f"Epoch {epoch + 1}, Average train Loss: {average_loss:.4f}")
