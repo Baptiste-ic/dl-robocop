@@ -67,7 +67,7 @@ def calculate_toxicity_score(judge_model, classifier_tokenizer, output_sequence,
     # Tokenizing user the judge tokenizer
     # TODO: need to check if we should bring judge_input back to device here or put classifier_tokenizer in device before
     judge_input = classifier_tokenizer.encode(output_sequence, return_tensors='pt').to(device)
-
+    judge_input = judge_input.to(judge_model.device)
     # NOTE: This is a toy method because I did not find any pretrained politeness classifier!
     politeness_distribution = torch.softmax(judge_model(judge_input).logits, dim=-1)[0]
     toxicity_indicator = torch.argmax(politeness_distribution).item()
@@ -91,7 +91,6 @@ def compute_rl_loss(judge_model,
   - Then we reward goof Bert scores (f1 score)
 
   '''
-
     # Computing politeness scores for the greedy and sampled sentence
     g_toxicity_scores = torch.tensor(
         [calculate_toxicity_score(judge_model, judge_tokenizer, seq, device) for seq in greedy_seq])
@@ -240,7 +239,7 @@ def train_on_paradetox(student_model,
                                       device)
 
             # Computing total loss (RL + ML)
-            full_loss = alpha * rl_loss + ml_loss
+            full_loss = alpha * rl_loss + (1-alpha) * ml_loss
 
             # Backpropagating
             full_loss.backward()
