@@ -4,7 +4,8 @@ from torch.utils.data import TensorDataset
 from bert_score import score
 import os
 import shutil
-
+import matplotlib.pyplot as plt
+import pandas as pd
 
 
 def format_data(max_length, tokenizer, dataset):
@@ -58,6 +59,7 @@ def evaluate(model, test_dataloader, device):
     # Print average loss for the test dataset
     print(f"Test Average Loss: {average_loss:.4f}")
     model.train()
+    return average_loss
 
 
 def calculate_toxicity_score(judge_model, classifier_tokenizer, output_sequence, device):
@@ -67,7 +69,6 @@ def calculate_toxicity_score(judge_model, classifier_tokenizer, output_sequence,
     # Tokenizing user the judge tokenizer
     # TODO: need to check if we should bring judge_input back to device here or put classifier_tokenizer in device before
     judge_input = classifier_tokenizer.encode(output_sequence, return_tensors='pt').to(device)
-    judge_input = judge_input.to(judge_model.device)
     # NOTE: This is a toy method because I did not find any pretrained politeness classifier!
     politeness_distribution = torch.softmax(judge_model(judge_input).logits, dim=-1)[0]
     toxicity_indicator = torch.argmax(politeness_distribution).item()
@@ -166,6 +167,20 @@ def policy_sampling(model, input_ids, mask, max_seq_length, device):
 
     return output_ids, sequence_probas
 
+def plot_losses(train_losses, test_losses):
+    #ploting the whole loss starting from the beginning of training
+    plt.figure(figsize=(5, 5))
+    plt.plot(train_losses, c='blue', label='train')
+    plt.plot(test_losses, c='orange', label='test')
+    plt.legend(loc="upper left")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title('losses')
+    plt.plot()
+
+def save_losses(train_losses, test_losses, loss_dir):
+    pd.DataFrame(train_losses).to_csv(loss_dir + '/train_losses.csv', index=False)
+    pd.DataFrame(test_losses).to_csv(loss_dir + '/test_losses.csv', index=False)
 
 def train_on_paradetox(student_model,
                        judge_model,
@@ -179,7 +194,8 @@ def train_on_paradetox(student_model,
                        device,
                        lambda_tox,
                        lambda_bert,
-                       weights_dir='weights'):
+                       weights_dir='weights',
+                       loss_dir='losses'):
     ''' 
     Trains a model on the dataset using both Maximum Likelihood and 
     Reinforcement Learning losses.
@@ -188,6 +204,13 @@ def train_on_paradetox(student_model,
     if os.path.exists(weights_dir):
         shutil.rmtree(weights_dir)
     os.makedirs(weights_dir)
+
+    if os.path.exists(loss_dir):
+        shutil.rmtree(loss_dir)
+    os.makedirs(loss_dir)
+
+    train_losses = []
+    test_losses = []
 
     for epoch in range(num_epochs):
         # Preparing for training
@@ -252,7 +275,12 @@ def train_on_paradetox(student_model,
         torch.save(student_model.state_dict(), "./" + weights_dir + '/epoch' + str(epoch) + '.pt')
 
         average_loss = total_loss / len(dataloader)
+        train_losses.append(average_loss)
         print(f"Epoch {epoch + 1}, Average train Loss: {average_loss:.4f}")
         print(f'Evaluating on test set...')
-        evaluate(student_model, test_dataloader, device)
+        test_loss = evaluate(student_model, test_dataloader, device)
+        test_losses.append(test_loss)
+        save_losses(train_losses, test_losses, loss_dir)
         print('\n')
+
+    plot_losses(train_losses, test_losses)
