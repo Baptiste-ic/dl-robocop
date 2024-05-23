@@ -24,6 +24,9 @@ if __name__ == '__main__':
     student_tokenizer.pad_token_id = student_tokenizer.eos_token_id
     student_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
 
+    weights_path = "model.pth"
+    student_model.load_state_dict(torch.load(weights_path, map_location=device))
+
     # POLITENESS JUDGE
 
     # load tokenizer and model weights
