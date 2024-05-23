@@ -142,7 +142,7 @@ def compute_rl_loss(judge_model,
 
 
 def policy_sampling(model, input_ids, mask, max_seq_length, device):
-    '''
+    """
     Produces random sequences sampled according to the logits of the model.
 
     Args:
@@ -155,7 +155,7 @@ def policy_sampling(model, input_ids, mask, max_seq_length, device):
     Returns:
     - output_ids: The sampled output ids.
     - sequence_probas: The probabilities of the sampled sequences.
-    '''
+    """
 
     # Creating variables
     decoder_inputs = {'input_ids': input_ids, 'attention_mask': mask}
@@ -163,7 +163,7 @@ def policy_sampling(model, input_ids, mask, max_seq_length, device):
     sequence_probas = torch.tensor([])
     past_key_values = None
 
-    # Iterating over the sequennces
+    # Iterating over the sequences
     for t in range(max_seq_length):
         # Feeding last generation
         model_outputs = model(**decoder_inputs, use_cache=True, past_key_values=past_key_values)
@@ -201,6 +201,30 @@ def policy_sampling(model, input_ids, mask, max_seq_length, device):
     return output_ids, sequence_probas
 
 
+def sample_sequence(logits):
+    """
+    Samples a sequence from the logits.
+
+    Args:
+    - logits: The logits to sample from.
+
+    Returns:
+    - sampled_indices: The sampled indices.
+    - probabilities: The probabilities of the sampled indices.
+    """
+    # Compute probabilities using softmax
+    probabilities = F.softmax(logits, dim=-1).cpu()
+    # Sample tokens using multinomial
+    sampled_indices = torch.zeros((logits.size(0), logits.size(1), 1), dtype=torch.long)
+
+    for i in range(logits.shape[1]):
+        sampled_indices[:, i, :] = torch.multinomial(probabilities[:, i, :], 1)
+
+    probabilities = torch.gather(probabilities, 2, sampled_indices).squeeze()
+    sampled_indices = sampled_indices.squeeze()
+    return sampled_indices, probabilities
+
+
 def plot_losses(train_losses, test_losses):
     """
     Plots the losses for the training and testing sets.
@@ -209,7 +233,7 @@ def plot_losses(train_losses, test_losses):
     - train_losses: The training losses.
     - test_losses: The testing losses.
     """
-    # ploting the whole loss starting from the beginning of training
+    # plotting the whole loss starting from the beginning of training
     plt.figure(figsize=(5, 5))
     plt.plot(train_losses, c='blue', label='train')
     plt.plot(test_losses, c='orange', label='test')
@@ -247,8 +271,8 @@ def train_on_paradetox(student_model,
                        lambda_bert,
                        weights_dir='weights',
                        loss_dir='losses'):
-    ''' 
-    Trains a model on the dataset using both Maximum Likelihood and 
+    """
+    Trains a model on the dataset using both Maximum Likelihood and
     Reinforcement Learning losses.
 
     Args:
@@ -266,7 +290,7 @@ def train_on_paradetox(student_model,
     - lambda_bert: The weight to give to the BERT score.
     - weights_dir: The directory to save the model weights.
     - loss_dir: The directory to save the losses.
-    '''
+    """
 
     if os.path.exists(weights_dir):
         shutil.rmtree(weights_dir)
@@ -301,7 +325,8 @@ def train_on_paradetox(student_model,
             # Feeding to student model 
             g_student_outputs = student_model(input_ids=input_ids, attention_mask=input_mask, labels=detoxified_ids)
 
-            # Decoding to greedy sequence to compute RL loss (take the most probable token string representation)
+            # Decoding to greedy sequence to compute RL loss (take the most probable token string representation for
+            # the sequence)
             g_output_sequences = tokenizer.batch_decode(g_student_outputs.logits.argmax(dim=-1),
                                                         skip_special_tokens=True)
             max_policy_seq_length = 40
