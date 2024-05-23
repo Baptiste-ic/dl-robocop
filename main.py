@@ -1,11 +1,8 @@
-# from datasets import load_dataset
 import pandas as pd
 import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification
-from transformers import RobertaTokenizer, RobertaForSequenceClassification
 from torch.utils.data.dataset import random_split
-# import jsonlines
 from helpers import format_data
 from helpers import train_on_paradetox
 
@@ -16,8 +13,8 @@ BATCH_SIZE = 16
 LEARNING_RATE = 3e-5
 NUM_EPOCHS = 1
 ALPHA_RL_LOSS = 0.5
-LAMBDA_TOX = 1
-LAMBDA_BERT = 1
+LAMBDA_TOX = 0.2
+LAMBDA_BERT = 0.8
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

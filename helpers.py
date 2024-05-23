@@ -1,11 +1,11 @@
 import torch
-import numpy as np
 from torch.utils.data import TensorDataset
 from bert_score import score
 import os
 import shutil
 import matplotlib.pyplot as plt
 import pandas as pd
+import torch.nn.functional as F
 
 
 def format_data(max_length: int, tokenizer, dataset):

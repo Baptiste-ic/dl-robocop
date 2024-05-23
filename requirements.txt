@@ -2,8 +2,9 @@ numpy==1.25.2
 tqdm==4.66.2
 torch==2.1.0
 datasets==2.17.1
-transformers==4.37.2
+transformers~=4.38.1
 evaluate==0.4.1
-matplotlib==3.7.1
+matplotlib~=3.8.3
 tensorboard==2.15.2
 bert-score
+pandas~=2.2.0
