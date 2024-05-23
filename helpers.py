@@ -93,13 +93,27 @@ def compute_rl_loss(judge_model,
                     lambda_tox,
                     lambda_bert,
                     device):
-    '''
-  Computes the reinforcement learning loss, it is composed of two parts:
+    """
+     Computes the reinforcement learning loss, it is composed of two parts:
 
-  - First we reward good politenes based on a judge model
-  - Then we reward goof Bert scores (f1 score)
+    - First we reward good politenes based on a judge model
+    - Then we reward goof Bert scores (f1 score)
 
-  '''
+    Args:
+    - judge_model: The model to use as a judge for politeness.
+    - judge_tokenizer: The tokenizer to use for the judge model.
+    - sampled_probas: The probabilities of the sampled sequences.
+    - greedy_seq: The greedy sequence.
+    - sampled_seq: The sampled sequence.
+    - gold: The gold sequence.
+    - lambda_tox: The weight to give to the politeness score.
+    - lambda_bert: The weight to give to the BERT score.
+    - device: The device to use.
+
+    Returns:
+    - rl_loss: The reinforcement learning loss.
+
+    """
     # Computing politeness scores for the greedy and sampled sentence
     g_toxicity_scores = torch.tensor(
         [calculate_toxicity_score(judge_model, judge_tokenizer, seq, device) for seq in greedy_seq])
@@ -130,6 +144,17 @@ def compute_rl_loss(judge_model,
 def policy_sampling(model, input_ids, mask, max_seq_length, device):
     '''
     Produces random sequences sampled according to the logits of the model.
+
+    Args:
+    - model: The model to use for sampling.
+    - input_ids: The input ids to use.
+    - mask: The mask to use.
+    - max_seq_length: The maximum length of the sequences to generate.
+    - device: The device to use.
+
+    Returns:
+    - output_ids: The sampled output ids.
+    - sequence_probas: The probabilities of the sampled sequences.
     '''
 
     # Creating variables
@@ -177,6 +202,13 @@ def policy_sampling(model, input_ids, mask, max_seq_length, device):
 
 
 def plot_losses(train_losses, test_losses):
+    """
+    Plots the losses for the training and testing sets.
+
+    Args:
+    - train_losses: The training losses.
+    - test_losses: The testing losses.
+    """
     # ploting the whole loss starting from the beginning of training
     plt.figure(figsize=(5, 5))
     plt.plot(train_losses, c='blue', label='train')
@@ -189,6 +221,14 @@ def plot_losses(train_losses, test_losses):
 
 
 def save_losses(train_losses, test_losses, loss_dir):
+    """
+    Saves the losses to a CSV file.
+
+    Args:
+    - train_losses: The training losses.
+    - test_losses: The testing losses.
+    - loss_dir: The directory to save the losses.
+    """
     pd.DataFrame(train_losses).to_csv(loss_dir + '/train_losses.csv', index=False)
     pd.DataFrame(test_losses).to_csv(loss_dir + '/test_losses.csv', index=False)
 
@@ -210,6 +250,22 @@ def train_on_paradetox(student_model,
     ''' 
     Trains a model on the dataset using both Maximum Likelihood and 
     Reinforcement Learning losses.
+
+    Args:
+    - student_model: The model to train.
+    - judge_model: The model to use as a judge for politeness.
+    - tokenizer: The tokenizer to use.
+    - judge_tokenizer: The tokenizer to use for the judge model.
+    - optimizer: The optimizer to use.
+    - dataloader: The dataloader to use for training.
+    - test_dataloader: The dataloader to use for testing.
+    - num_epochs: The number of epochs to train for.
+    - alpha: The weight to give to the RL loss.
+    - device: The device to use for training.
+    - lambda_tox: The weight to give to the politeness score.
+    - lambda_bert: The weight to give to the BERT score.
+    - weights_dir: The directory to save the model weights.
+    - loss_dir: The directory to save the losses.
     '''
 
     if os.path.exists(weights_dir):
@@ -235,7 +291,7 @@ def train_on_paradetox(student_model,
 
             # Getting input, label and mask
             input_ids, detoxified_ids, input_mask = batch
-            batch_size = input_ids.size(0)
+            batch_size = input_ids.size(0)  # TODO: Not used, Do we need it?
 
             # Putting model inputs on device
             input_ids = input_ids.to(device)
@@ -245,14 +301,15 @@ def train_on_paradetox(student_model,
             # Feeding to student model 
             g_student_outputs = student_model(input_ids=input_ids, attention_mask=input_mask, labels=detoxified_ids)
 
-            # Decoding to greedy sequence to compute RL loss
+            # Decoding to greedy sequence to compute RL loss (take the most probable token string representation)
             g_output_sequences = tokenizer.batch_decode(g_student_outputs.logits.argmax(dim=-1),
                                                         skip_special_tokens=True)
-
+            max_policy_seq_length = 40
             # Sampling from student model for RL loss
-            s_student_outputs, s_student_probas = policy_sampling(student_model, input_ids, input_mask, 40, device)
+            s_student_outputs, s_student_probas = (
+                policy_sampling(student_model, input_ids, input_mask, max_policy_seq_length, device))
 
-            # Decodng to sampled sequence to compute RL loss
+            # Decoding to sampled sequence to compute RL loss
             s_output_sequences = tokenizer.batch_decode(s_student_outputs, skip_special_tokens=True)
 
             # Decoding reference sequence for RL loss
@@ -275,7 +332,7 @@ def train_on_paradetox(student_model,
             # Computing total loss (RL + ML)
             full_loss = alpha * rl_loss + (1 - alpha) * ml_loss
 
-            # Backpropagating
+            # Backpropagation
             full_loss.backward()
             optimizer.step()
             optimizer.zero_grad()
