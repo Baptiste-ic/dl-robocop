@@ -8,10 +8,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 
-def format_data(max_length, tokenizer, dataset):
-    '''
+def format_data(max_length: int, tokenizer, dataset):
+    """
     Create a tokenized tensor dataset that can then be used to create dataloaders.
-    '''
+
+    Args:
+    - max_length: The maximum length of the tokenized sequences.
+    - tokenizer: The tokenizer to use.
+    - dataset: The dataset to format.
+
+    Returns:
+    - tensor_dataset: The tokenized tensor dataset.
+    """
     # Generate the input_ids and input_mask for each sample
     input_ids = [torch.tensor(tokenizer.encode(d, max_length=max_length, padding='max_length')) for d in
                  dataset['toxic']]
@@ -63,9 +71,9 @@ def evaluate(model, test_dataloader, device):
 
 
 def calculate_toxicity_score(judge_model, classifier_tokenizer, output_sequence, device):
-    '''
-  Usess a judge model to give a politeness score to the given sequence.
-  '''
+    """
+    Uses a judge model to give a politeness score to the given sequence.
+    """
     # Tokenizing user the judge tokenizer
     # TODO: need to check if we should bring judge_input back to device here or put classifier_tokenizer in device before
     judge_input = classifier_tokenizer.encode(output_sequence, return_tensors='pt').to(device)
@@ -167,8 +175,9 @@ def policy_sampling(model, input_ids, mask, max_seq_length, device):
 
     return output_ids, sequence_probas
 
+
 def plot_losses(train_losses, test_losses):
-    #ploting the whole loss starting from the beginning of training
+    # ploting the whole loss starting from the beginning of training
     plt.figure(figsize=(5, 5))
     plt.plot(train_losses, c='blue', label='train')
     plt.plot(test_losses, c='orange', label='test')
@@ -178,9 +187,11 @@ def plot_losses(train_losses, test_losses):
     plt.title('losses')
     plt.plot()
 
+
 def save_losses(train_losses, test_losses, loss_dir):
     pd.DataFrame(train_losses).to_csv(loss_dir + '/train_losses.csv', index=False)
     pd.DataFrame(test_losses).to_csv(loss_dir + '/test_losses.csv', index=False)
+
 
 def train_on_paradetox(student_model,
                        judge_model,
@@ -262,7 +273,7 @@ def train_on_paradetox(student_model,
                                       device)
 
             # Computing total loss (RL + ML)
-            full_loss = alpha * rl_loss + (1-alpha) * ml_loss
+            full_loss = alpha * rl_loss + (1 - alpha) * ml_loss
 
             # Backpropagating
             full_loss.backward()
