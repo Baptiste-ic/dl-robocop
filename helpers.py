@@ -296,13 +296,6 @@ def train_on_paradetox(student_model,
         shutil.rmtree(weights_dir)
     os.makedirs(weights_dir)
 
-    if os.path.exists(loss_dir):
-        shutil.rmtree(loss_dir)
-    os.makedirs(loss_dir)
-
-    train_losses = []
-    test_losses = []
-
     for epoch in range(num_epochs):
         # Preparing for training
         student_model.train()
@@ -311,53 +304,53 @@ def train_on_paradetox(student_model,
 
         # Iterating over dataset
         for i, batch in enumerate(dataloader):
-            print(f'\n {i + 1}/{len(dataloader)}')
+            print(f'\r {i + 1}/{len(dataloader)}', end='')
 
             # Getting input, label and mask
             input_ids, detoxified_ids, input_mask = batch
-            batch_size = input_ids.size(0)  # TODO: Not used, Do we need it?
+            batch_size = input_ids.size(0)
 
             # Putting model inputs on device
             input_ids = input_ids.to(device)
             detoxified_ids = detoxified_ids.to(device)
             input_mask = input_mask.to(device)
 
-            # Feeding to student model 
+            # Feeding to student model
             g_student_outputs = student_model(input_ids=input_ids, attention_mask=input_mask, labels=detoxified_ids)
-
-            # Decoding to greedy sequence to compute RL loss (take the most probable token string representation for
-            # the sequence)
-            g_output_sequences = tokenizer.batch_decode(g_student_outputs.logits.argmax(dim=-1),
-                                                        skip_special_tokens=True)
-            max_policy_seq_length = 40
-            # Sampling from student model for RL loss
-            s_student_outputs, s_student_probas = (
-                policy_sampling(student_model, input_ids, input_mask, max_policy_seq_length, device))
-
-            # Decoding to sampled sequence to compute RL loss
-            s_output_sequences = tokenizer.batch_decode(s_student_outputs, skip_special_tokens=True)
-
-            # Decoding reference sequence for RL loss
-            gold_sequences = tokenizer.batch_decode(detoxified_ids, skip_special_tokens=True)
 
             # Computing Maximum Likelihood loss (usual loss)
             ml_loss = g_student_outputs.loss
+            full_loss = ml_loss
+            if alpha != 0:
+                # Decoding to greedy sequence to compute RL loss
+                g_output_sequences = tokenizer.batch_decode(g_student_outputs.logits.argmax(dim=-1),
+                                                            skip_special_tokens=True)
+                gold_sequences = tokenizer.batch_decode(detoxified_ids, skip_special_tokens=True)
 
-            # Computing Reinforcement Learning loss
-            rl_loss = compute_rl_loss(judge_model,
-                                      judge_tokenizer,
-                                      s_student_probas,
-                                      g_output_sequences,
-                                      s_output_sequences,
-                                      gold_sequences,
-                                      lambda_tox,
-                                      lambda_bert,
-                                      device)
+                # Sampling from student model for RL loss
+                s_student_outputs, s_student_probas = sample_sequence(g_student_outputs.logits)
 
-            # Computing total loss (RL + ML)
-            full_loss = alpha * rl_loss + (1 - alpha) * ml_loss
+                # Decodng to sampled sequence to compute RL loss
+                s_output_sequences = tokenizer.batch_decode(s_student_outputs, skip_special_tokens=True)
 
-            # Backpropagation
+                # Decoding reference sequence for RL loss
+                gold_sequences = tokenizer.batch_decode(detoxified_ids, skip_special_tokens=True)
+
+                # Computing Reinforcement Learning loss
+                rl_loss = compute_rl_loss(judge_model,
+                                          judge_tokenizer,
+                                          s_student_probas,
+                                          g_output_sequences,
+                                          s_output_sequences,
+                                          gold_sequences,
+                                          lambda_tox,
+                                          lambda_bert,
+                                          device)
+
+                # Computing total loss (RL + ML)
+                full_loss += alpha * rl_loss
+
+            # Backpropagating
             full_loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -368,12 +361,7 @@ def train_on_paradetox(student_model,
         torch.save(student_model.state_dict(), "./" + weights_dir + '/epoch' + str(epoch) + '.pt')
 
         average_loss = total_loss / len(dataloader)
-        train_losses.append(average_loss)
         print(f"Epoch {epoch + 1}, Average train Loss: {average_loss:.4f}")
         print(f'Evaluating on test set...')
-        test_loss = evaluate(student_model, test_dataloader, device)
-        test_losses.append(test_loss)
-        save_losses(train_losses, test_losses, loss_dir)
+        evaluate(student_model, test_dataloader, device)
         print('\n')
-
-    plot_losses(train_losses, test_losses)
