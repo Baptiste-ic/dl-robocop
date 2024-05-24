@@ -5,6 +5,7 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequen
 from torch.utils.data.dataset import random_split
 from helpers import format_data
 from helpers import train_on_paradetox
+from peft import get_peft_model, LoraConfig, TaskType
 
 DATA_PATH = "data/"
 MAX_TOKENIZATION_LENGTH = 38
@@ -20,7 +21,7 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     peft_config = LoraConfig(
-        task_type=TaskType.SEQ_2_SEQ_LM,  # Ensure task type aligns with sequence-to-sequence learning
+        task_type=TaskType.CAUSAL_LM,  # Ensure task type aligns with sequence-to-sequence learning
         inference_mode=False,  # Set to False for training, True for inference
         r=8,  # The rank of the LoRA matrices
         lora_alpha=32,  # The scaling factor for the LoRA matrices
