@@ -73,4 +73,5 @@ if __name__ == '__main__':
                        alpha=ALPHA_RL_LOSS,
                        device=device,
                        lambda_tox=LAMBDA_TOX,
-                       lambda_bert=LAMBDA_BERT)
+                       lambda_bert=LAMBDA_BERT,
+                       weights_path=weights_path)
