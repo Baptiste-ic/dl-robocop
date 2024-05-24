@@ -7,3 +7,4 @@ evaluate==0.4.1
 matplotlib~=3.8.3
 tensorboard==2.15.2
 bert-score
+peft

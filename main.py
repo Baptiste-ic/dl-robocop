@@ -18,11 +18,22 @@ LAMBDA_BERT = 0.8
 
 if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    peft_config = LoraConfig(
+        task_type=TaskType.SEQ_2_SEQ_LM,  # Ensure task type aligns with sequence-to-sequence learning
+        inference_mode=False,  # Set to False for training, True for inference
+        r=8,  # The rank of the LoRA matrices
+        lora_alpha=32,  # The scaling factor for the LoRA matrices
+        lora_dropout=0.1  # Dropout rate to use in LoRA layers
+    )
+
     # BART MODEL (STUDENT)
     model_name = "facebook/bart-base"
     student_tokenizer = AutoTokenizer.from_pretrained(model_name)
     student_tokenizer.pad_token_id = student_tokenizer.eos_token_id
     student_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+    student_model = get_peft_model(student_model, peft_config)
+    student_model.print_trainable_parameters()
 
     # student_model = AutoModel.from_pretrained(model_name).to(device)
 
