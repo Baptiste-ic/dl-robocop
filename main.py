@@ -33,6 +33,9 @@ if __name__ == '__main__':
     student_tokenizer = AutoTokenizer.from_pretrained(model_name)
     student_tokenizer.pad_token_id = student_tokenizer.eos_token_id
     student_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+    weights_path = "model.pth"
+    student_model.load_state_dict(torch.load(weights_path, map_location=device))
+
     student_model = get_peft_model(student_model, peft_config)
     student_model.print_trainable_parameters()
 
@@ -48,9 +51,6 @@ if __name__ == '__main__':
     classifier_name = "facebook/roberta-hate-speech-dynabench-r4-target"
     classifier_tokenizer = AutoTokenizer.from_pretrained(classifier_name)
     toxicity_classifier_model = AutoModelForSequenceClassification.from_pretrained(classifier_name).to(device)
-
-    weights_path = "model.pth"
-    student_model.load_state_dict(torch.load(weights_path, map_location=device))
 
     data_path = DATA_PATH
     dataset = pd.read_csv(data_path + 'paradetox.tsv', sep='\t')
