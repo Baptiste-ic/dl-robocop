@@ -15,7 +15,7 @@ tokenized_datasets = dataset.map(tokenize_function, batched=True)
 
 
 train_dataset = tokenized_datasets["train"].shuffle(seed=42).select(range(10000))  # Selecting a subset for training
-val_dataset = tokenized_datasets["validation"].shuffle(seed=42).select(range(2000))  # Selecting a subset for validation
+val_dataset = tokenized_datasets["test"].shuffle(seed=42).select(range(2000))  # Selecting a subset for validation
 
 train_loader = DataLoader(train_dataset, shuffle=True, batch_size=8)
 val_loader = DataLoader(val_dataset, batch_size=8)
