@@ -22,9 +22,9 @@ if __name__ == '__main__':
     model_name = "facebook/bart-base"
     student_tokenizer = AutoTokenizer.from_pretrained(model_name)
     student_tokenizer.pad_token_id = student_tokenizer.eos_token_id
-    # student_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+    student_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
 
-    student_model = AutoModel.from_pretrained(model_name).to(device)
+    # student_model = AutoModel.from_pretrained(model_name).to(device)
 
     # POLITENESS JUDGE
 
@@ -74,4 +74,4 @@ if __name__ == '__main__':
                        device=device,
                        lambda_tox=LAMBDA_TOX,
                        lambda_bert=LAMBDA_BERT,
-                       weights_path=weights_path)
+                       weights_dir="weights_Auto")
