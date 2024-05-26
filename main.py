@@ -1,3 +1,5 @@
+import warnings
+
 import pandas as pd
 import torch
 from peft import get_peft_model, LoraConfig, TaskType
@@ -5,7 +7,7 @@ from sentence_transformers import SentenceTransformer
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import random_split
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, \
-    RobertaTokenizer, RobertaForSequenceClassification, pipeline
+    RobertaTokenizer, RobertaForSequenceClassification, pipeline, logging
 
 from train import format_data, train_on_paradetox
 
@@ -32,6 +34,10 @@ LAMBDA_BERT = 0.8
 SAVE_FREQUENCY = 50
 
 if __name__ == '__main__':
+
+    # Remove irrelevant warnings
+    logging.set_verbosity_error()
+    warnings.filterwarnings("ignore", message="TypedStorage is deprecated")
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f'Running on {device}')
