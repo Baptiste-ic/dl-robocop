@@ -42,10 +42,10 @@ parser.add_argument('--learning_rate', type=float, default=3e-5, help='Learning 
 parser.add_argument('--warmup_epochs', type=int, default=100,
                     help='Number of warmup epochs (during which we don\'t use the rl loss')
 parser.add_argument('--num_epochs', type=int, default=1000, help='Number of training epochs')
-parser.add_argument('--alpha_rl_loss', type=float, default=0, help='Alpha RL loss')
+parser.add_argument('--alpha_rl_loss', type=float, default=0.5, help='Alpha RL loss')
 parser.add_argument('--lambda_tox', type=float, default=0.2, help='Lambda toxicity')
 parser.add_argument('--lambda_bert', type=float, default=0.8, help='Lambda BERT')
-parser.add_argument('--save_frequency', type=int, default=50, help='Frequency of saving weights')
+parser.add_argument('--save_frequency', type=int, default=1, help='Frequency of saving weights')
 
 
 def main():

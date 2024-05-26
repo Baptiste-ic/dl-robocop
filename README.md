@@ -1,10 +1,17 @@
 # dl-robocop
 
-Our task is to detoxify sentences in the same way `paradetox` does.
-We are introducing novel methods to augment the dataset and add new loses terms to improve performances
+## Dataset
 
-We will use the `paradetox` dataset, augmented with `chatgpt 3.5`, that will try to explain why the imput sentence is toxic or not. This (we hope) will enhance the performances of the model.
+Before running the code to train the model, make sure to download the [Paradetox](https://github.com/s-nlp/paradetox/tree/main/paradetox) dataset
+(only the file `paradetox.tsv` is needed). Once downloaded, put the file in a folder named `data` at the root of the project.
 
-We will adopt a teacher-student way of training (TODO: ref paper) to help the teacher model find the complex sementical links faster.
+## Training
 
-We will also try to use the `Bert` embeding space to keep sementical meaning of the sentence.
+To train the model from scratch, simply run `main.py` without specifying any parameters.
+To train the model from an existing checkpoint, run `main.py --checkpoint_dir <path> --checkpoint_model <model weights filename> --checkpoint_optimizer <optimizer weights filename>`,
+with the directory and filenames of the weights.
+
+## Inferences
+
+To do inferences on a trained model, run `main.py` with the same parameters as above (you don't need to specify the optimizer) and add the argument `--inference`.
+Then, once the weights are loaded, you can write input sentences in your terminal and the model output will be displayed right away.
