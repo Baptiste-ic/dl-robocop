@@ -26,7 +26,7 @@ VAL_SIZE_RATIO = 0.1
 BATCH_SIZE = 16
 LEARNING_RATE = 3e-5
 NUM_EPOCHS = 1000
-ALPHA_RL_LOSS = 0.5
+ALPHA_RL_LOSS = 0
 LAMBDA_TOX = 0.2
 LAMBDA_BERT = 0.8
 
@@ -53,8 +53,8 @@ if __name__ == '__main__':
         print("Restoring model weights from checkpoint")
         student_model.load_state_dict(torch.load(CHECKPOINT_DIR + CHECKPOINT_MODEL, map_location=device))
 
-    # student_model = get_peft_model(student_model, peft_config)
-    # student_model.print_trainable_parameters()
+    student_model = get_peft_model(student_model, peft_config)
+    student_model.print_trainable_parameters()
 
     # POLITENESS JUDGE
     classifier_tokenizer = RobertaTokenizer.from_pretrained(CLASSIFIER_NAME)
