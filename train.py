@@ -291,6 +291,7 @@ def train_on_paradetox(model,
                        dataloader,
                        val_dataloader,
                        num_epochs,
+                       warmup_epochs,
                        alpha,
                        device,
                        lambda_tox,
@@ -314,6 +315,7 @@ def train_on_paradetox(model,
     - dataloader: The dataloader to use for training.
     - val_dataloader: The dataloader to use for validation.
     - num_epochs: The number of epochs to train for.
+    - warmup_epochs: The number of epochs we don't use the rl loss.
     - alpha: The weight to give to the RL loss.
     - device: The device to use for training.
     - lambda_tox: The weight to give to the politeness score.
@@ -327,13 +329,13 @@ def train_on_paradetox(model,
     unique_name = str(datetime.now())[:-7].replace(' ', ',').replace(':', '-') + '/'
     if not os.path.exists(weights_dir):
         os.makedirs(weights_dir)
-    weights_dir += unique_name
+    weights_dir = os.path.join(weights_dir, unique_name)
     os.makedirs(weights_dir)
 
     # Create new directories for metrics
     if not os.path.exists(metrics_dir):
         os.makedirs(metrics_dir)
-    metrics_dir += unique_name
+    metrics_dir = os.path.join(metrics_dir, unique_name)
     os.makedirs(metrics_dir)
     metrics_file_path = os.path.join(metrics_dir, 'metrics.txt')
 
@@ -368,7 +370,7 @@ def train_on_paradetox(model,
             # Computing Maximum Likelihood loss (usual loss)
             ml_loss = g_model_outputs.loss
             full_loss = ml_loss
-            if alpha != 0:
+            if alpha != 0 and epoch >= warmup_epochs:
                 # Decoding to greedy sequence to compute RL loss
                 g_output_sequences = tokenizer.batch_decode(g_model_outputs.logits.argmax(dim=-1),
                                                             skip_special_tokens=True)
@@ -409,9 +411,9 @@ def train_on_paradetox(model,
         if epoch % save_frequency == 0:
             print('Saving model weights and optimizer state...')
             # Save model weights
-            torch.save(model.state_dict(), './' + weights_dir + 'model_epoch' + str(epoch) + '.pt')
+            torch.save(model.state_dict(), os.path.join(weights_dir, 'model_epoch' + str(epoch) + '.pt'))
             # Save optimizer state
-            torch.save(optimizer.state_dict(), './' + weights_dir + 'optimizer_epoch' + str(epoch) + '.pt')
+            torch.save(optimizer.state_dict(), os.path.join(weights_dir, 'optimizer_epoch' + str(epoch) + '.pt'))
 
             print(f'Evaluating on test set...')
             eval_loss, eval_metrics = evaluate(model, tokenizer, judge_model, judge_tokenizer, judge_threshold,
