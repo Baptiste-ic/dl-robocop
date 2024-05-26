@@ -73,7 +73,7 @@ if __name__ == '__main__':
     similarity_model = SentenceTransformer(SIMILARITY_MODEL_NAME)
 
     # Load dataset
-    dataset = pd.read_csv(DATA_PATH, sep='\t')[:20]
+    dataset = pd.read_csv(DATA_PATH, sep='\t')
 
     # Define the maximum length and other parameters
     tensor_dataset = format_data(MAX_TOKENIZATION_LENGTH, model_tokenizer, dataset)
