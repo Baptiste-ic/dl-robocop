@@ -71,7 +71,7 @@ if __name__ == '__main__':
     similarity_model = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')
 
     # Load dataset
-    dataset = pd.read_csv(DATA_PATH, sep='\t')[:30]
+    dataset = pd.read_csv(DATA_PATH, sep='\t')
 
     # Define the maximum length and other parameters
     tensor_dataset = format_data(MAX_TOKENIZATION_LENGTH, student_tokenizer, dataset)
