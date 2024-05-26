@@ -437,7 +437,6 @@ def train_on_paradetox(student_model,
             plt.ylabel(metric)
             plt.title(f'Epoch vs {metric}')
             plt.legend()
-            plt.grid(True)
             plt.savefig(os.path.join(loss_dir, f'{metric}_epoch_{epoch + 1}.png'))
             plt.close()
 
@@ -449,7 +448,6 @@ def train_on_paradetox(student_model,
         plt.ylabel('Metric Score')
         plt.title('Training Metrics Over Epochs')
         plt.legend(loc='upper left')
-        plt.grid(True)
         plt.savefig(os.path.join(loss_dir, f'combined_metrics_epoch_{epoch + 1}.png'))
         plt.close()
 
