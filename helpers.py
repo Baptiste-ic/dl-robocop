@@ -6,6 +6,8 @@ import shutil
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch.nn.functional as F
+from datetime import datetime
+from metrics import compute_metrics
 
 
 def format_data(max_length: int, tokenizer, dataset):
@@ -39,12 +41,19 @@ def format_data(max_length: int, tokenizer, dataset):
     return tensor_dataset
 
 
-def evaluate(model, test_dataloader, device):
+def evaluate(model, tokenizer, judge_model, judge_tokenizer, judge_threshold, val_dataloader, fluency_pipeline,
+             similarity_model, device):
     model.eval()  # Set the model to evaluation mode
     tot_loss = 0.0
 
+    metrics = {'bleu': 0,
+               'sta': 0,
+               'sim': 0,
+               'fl': 0,
+               'j': 0}
+
     # Iterate through the test dataloader
-    for batch in test_dataloader:
+    for batch in val_dataloader:
         input_ids, detoxified_ids, input_mask = batch
 
         # Move tensors to the device
@@ -61,13 +70,35 @@ def evaluate(model, test_dataloader, device):
             # Accumulate total loss
             tot_loss += loss.item()
 
-    # Calculate average loss over all batches
-    average_loss = tot_loss / len(test_dataloader)
+            # Compute metrics
+            x = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
+            print(f"x {x}")
+            y_pred = tokenizer.batch_decode(model_outputs.logits.argmax(dim=-1), skip_special_tokens=True)
+            print(f" y pred {y_pred}")
+            y_real = tokenizer.batch_decode(detoxified_ids, skip_special_tokens=True)
+            bleu, sta, sim, fl, j = compute_metrics(x, y_pred, y_real, judge_model, judge_tokenizer, judge_threshold,
+                                                    fluency_pipeline, similarity_model, device)
+            metrics['bleu'] += bleu
+            metrics['sta'] += sta
+            metrics['sim'] += sim
+            metrics['fl'] += fl
+            metrics['j'] += j
 
-    # Print average loss for the test dataset
+    # Calculate average loss and metrics over all batches
+    average_loss = tot_loss / len(val_dataloader)
+    for key in metrics:
+        metrics[key] /= len(val_dataloader)
+
+    # Print average loss and metrics for the validation set
     print(f"Test Average Loss: {average_loss:.4f}")
+    print(f"Test BLEU: {metrics['bleu']:.4f}")
+    print(f"Test STA: {metrics['sta']:.4f}")
+    print(f"Test SIM: {metrics['sim']:.4f}")
+    print(f"Test FL: {metrics['fl']:.4f}")
+    print(f"Test J: {metrics['j']:.4f}")
+
     model.train()
-    return average_loss
+    return average_loss, metrics
 
 
 def calculate_toxicity_score(judge_model, classifier_tokenizer, output_sequence, device):
@@ -261,15 +292,18 @@ def train_on_paradetox(student_model,
                        judge_model,
                        tokenizer,
                        judge_tokenizer,
+                       judge_threshold,
+                       fluency_pipeline,
+                       similarity_model,
                        optimizer,
                        dataloader,
-                       test_dataloader,
+                       val_dataloader,
                        num_epochs,
                        alpha,
                        device,
                        lambda_tox,
                        lambda_bert,
-                       weights_dir='weights',
+                       weights_dir='weights/',
                        loss_dir='losses'):
     """
     Trains a model on the dataset using both Maximum Likelihood and
@@ -280,9 +314,12 @@ def train_on_paradetox(student_model,
     - judge_model: The model to use as a judge for politeness.
     - tokenizer: The tokenizer to use.
     - judge_tokenizer: The tokenizer to use for the judge model.
+    - judge_threshold: The threshold of the judge.
+    - fluency_pipeline: The pipeline to compute the fluency
+    - similarity_model: The model to compute the similarities
     - optimizer: The optimizer to use.
     - dataloader: The dataloader to use for training.
-    - test_dataloader: The dataloader to use for testing.
+    - val_dataloader: The dataloader to use for validation.
     - num_epochs: The number of epochs to train for.
     - alpha: The weight to give to the RL loss.
     - device: The device to use for training.
@@ -292,9 +329,22 @@ def train_on_paradetox(student_model,
     - loss_dir: The directory to save the losses.
     """
 
-    if os.path.exists(weights_dir):
-        shutil.rmtree(weights_dir)
+    if not os.path.exists(weights_dir):
+        os.makedirs(weights_dir)
+    weights_dir += str(datetime.now())[:-7].replace(" ", ",").replace(":", "-") + "/"
     os.makedirs(weights_dir)
+
+    if not os.path.exists(loss_dir):
+        os.makedirs(loss_dir)
+    loss_dir += str(datetime.now())[:-7].replace(" ", ",").replace(":", "-") + "/"
+    os.makedirs(loss_dir)
+
+    metrics = {'loss': [],
+               'bleu': [],
+               'sta': [],
+               'sim': [],
+               'fl': [],
+               'j': []}
 
     for epoch in range(num_epochs):
         # Preparing for training
@@ -358,10 +408,24 @@ def train_on_paradetox(student_model,
             total_loss += full_loss.item()
 
         # Save model weights
-        torch.save(student_model.state_dict(), "./" + weights_dir + '/epoch' + str(epoch) + '.pt')
+        torch.save(student_model.state_dict(), "./" + weights_dir + 'model_epoch' + str(epoch) + '.pth')
+        # Save optimizer state
+        torch.save(optimizer.state_dict(), "./" + weights_dir + "optimizer_epoch" + str(epoch) + ".pth")
 
         average_loss = total_loss / len(dataloader)
         print(f"Epoch {epoch + 1}, Average train Loss: {average_loss:.4f}")
         print(f'Evaluating on test set...')
-        evaluate(student_model, test_dataloader, device)
+        eval_loss, eval_metrics = evaluate(student_model, tokenizer, judge_model, judge_tokenizer, judge_threshold,
+                                           val_dataloader, fluency_pipeline, similarity_model, device)
+        # Store eval metrics
+        metrics['loss'].append(eval_loss)
+        metrics['bleu'].append(eval_metrics['bleu'])
+        metrics['sta'].append(eval_metrics['sta'])
+        metrics['sim'].append(eval_metrics['sim'])
+        metrics['fl'].append(eval_metrics['fl'])
+        metrics['j'].append(eval_metrics['j'])
+
+        # Save a plot of the metrics
+        # TODO
+
         print('\n')
