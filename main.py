@@ -161,8 +161,8 @@ def inference(model, tokenizer, max_length):
         with torch.no_grad():
             output = model(input_ids.unsqueeze(0).to(model.device),
                            attention_mask=input_mask.unsqueeze(0).to(model.device))
-            output_sentence = tokenizer.batch_decode(output.logits.argmax(dim=-1), skip_special_tokens=True)
-            print(output_sentence)
+            output_sentence = tokenizer.batch_decode(output.logits.argmax(dim=-1), skip_special_tokens=True)[0]
+            print(f"The detoxified sentence is: {output_sentence}\n")
 
 
 if __name__ == '__main__':

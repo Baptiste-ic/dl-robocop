@@ -5,6 +5,10 @@
 Before running the code to train the model, make sure to download the [Paradetox](https://github.com/s-nlp/paradetox/tree/main/paradetox) dataset
 (only the file `paradetox.tsv` is needed). Once downloaded, put the file in a folder named `data` at the root of the project.
 
+## Tutorials
+
+You can find a tutorial on how to train the model and how to perform inferences in the folder `videos`.
+
 ## Training
 
 To train the model from scratch, simply run `main.py` without specifying any parameters.
