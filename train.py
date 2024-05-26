@@ -1,13 +1,12 @@
-import torch
-from torch.utils.data import TensorDataset
-from bert_score import score
 import os
-import shutil
-import matplotlib.pyplot as plt
-import pandas as pd
-import torch.nn.functional as F
 from datetime import datetime
-from metrics import compute_metrics
+
+import torch
+from bert_score import score
+from torch.nn.functional import softmax
+from torch.utils.data import TensorDataset
+
+from metrics import compute_metrics, store_metrics, plot_metrics
 
 
 def format_data(max_length: int, tokenizer, dataset):
@@ -43,7 +42,26 @@ def format_data(max_length: int, tokenizer, dataset):
 
 def evaluate(model, tokenizer, judge_model, judge_tokenizer, judge_threshold, val_dataloader, fluency_pipeline,
              similarity_model, device):
-    model.eval()  # Set the model to evaluation mode
+    """
+    Evaluate the model on the validation set.
+
+    Args:
+    - model: The model to evaluate.
+    - tokenizer: The tokenizer to use.
+    - judge_model: The model to use as a judge for politeness.
+    - judge_tokenizer: The tokenizer to use for the judge model.
+    - judge_threshold: The threshold of the judge.
+    - val_dataloader: The dataloader to use for validation.
+    - fluency_pipeline: The pipeline to compute the fluency.
+    - similarity_model: The model to compute the similarities.
+    - device: The device to use.
+
+    Returns:
+    - average_loss: The average loss on the validation set.
+    - metrics: The metrics on the validation set.
+    """
+    # Set the model to evaluation mode
+    model.eval()
     tot_loss = 0.0
 
     metrics = {'bleu': 0,
@@ -72,9 +90,7 @@ def evaluate(model, tokenizer, judge_model, judge_tokenizer, judge_threshold, va
 
             # Compute metrics
             x = tokenizer.batch_decode(input_ids, skip_special_tokens=True)
-            print(f"x {x}")
             y_pred = tokenizer.batch_decode(model_outputs.logits.argmax(dim=-1), skip_special_tokens=True)
-            print(f" y pred {y_pred}")
             y_real = tokenizer.batch_decode(detoxified_ids, skip_special_tokens=True)
             bleu, sta, sim, fl, j = compute_metrics(x, y_pred, y_real, judge_model, judge_tokenizer, judge_threshold,
                                                     fluency_pipeline, similarity_model, device)
@@ -90,12 +106,12 @@ def evaluate(model, tokenizer, judge_model, judge_tokenizer, judge_threshold, va
         metrics[key] /= len(val_dataloader)
 
     # Print average loss and metrics for the validation set
-    print(f"Test Average Loss: {average_loss:.4f}")
-    print(f"Test BLEU: {metrics['bleu']:.4f}")
-    print(f"Test STA: {metrics['sta']:.4f}")
-    print(f"Test SIM: {metrics['sim']:.4f}")
-    print(f"Test FL: {metrics['fl']:.4f}")
-    print(f"Test J: {metrics['j']:.4f}")
+    print(f'Test Average Loss: {average_loss:.4f}')
+    print(f'Test BLEU: {metrics["bleu"]:.4f}')
+    print(f'Test STA: {metrics["sta"]:.4f}')
+    print(f'Test SIM: {metrics["sim"]:.4f}')
+    print(f'Test FL: {metrics["fl"]:.4f}')
+    print(f'Test J: {metrics["j"]:.4f}')
 
     model.train()
     return average_loss, metrics
@@ -104,9 +120,17 @@ def evaluate(model, tokenizer, judge_model, judge_tokenizer, judge_threshold, va
 def calculate_toxicity_score(judge_model, classifier_tokenizer, output_sequence, device):
     """
     Uses a judge model to give a politeness score to the given sequence.
+
+    Args:
+    - judge_model: The model to use as a judge for politeness.
+    - classifier_tokenizer: The tokenizer to use for the judge model.
+    - output_sequence: The sequence to evaluate.
+    - device: The device to use.
+
+    Returns:
+    - toxicity_score: The politeness score.
     """
     # Tokenizing user the judge tokenizer
-    # TODO: need to check if we should bring judge_input back to device here or put classifier_tokenizer in device before
     judge_input = classifier_tokenizer.encode(output_sequence, return_tensors='pt').to(device)
     # NOTE: This is a toy method because I did not find any pretrained politeness classifier!
     politeness_distribution = torch.softmax(judge_model(judge_input).logits, dim=-1)[0]
@@ -127,7 +151,7 @@ def compute_rl_loss(judge_model,
     """
      Computes the reinforcement learning loss, it is composed of two parts:
 
-    - First we reward good politenes based on a judge model
+    - First we reward good politeness based on a judge model
     - Then we reward goof Bert scores (f1 score)
 
     Args:
@@ -155,8 +179,8 @@ def compute_rl_loss(judge_model,
     tox_rewards = s_toxicity_scores - g_toxicity_scores
 
     # Computing BERTScores  for the greedy and sampled sentence
-    _, _, g_bert_scores = score(greedy_seq, gold, lang="en", verbose=False)
-    _, _, s_bert_scores = score(sampled_seq, gold, lang="en", verbose=False)
+    _, _, g_bert_scores = score(greedy_seq, gold, lang='en', verbose=False)
+    _, _, s_bert_scores = score(sampled_seq, gold, lang='en', verbose=False)
 
     # Rewarding if the sampled sentence is better
     bert_rewards = s_bert_scores - g_bert_scores
@@ -244,10 +268,10 @@ def sample_sequence(logits):
     - probabilities: The probabilities of the sampled indices.
     """
     # Compute probabilities using softmax
-    probabilities = F.softmax(logits, dim=-1).cpu()
-    # Sample tokens using multinomial
+    probabilities = softmax(logits, dim=-1).cpu()
     sampled_indices = torch.zeros((logits.size(0), logits.size(1), 1), dtype=torch.long)
 
+    # Sample tokens using multinomial
     for i in range(logits.shape[1]):
         sampled_indices[:, i, :] = torch.multinomial(probabilities[:, i, :], 1)
 
@@ -256,39 +280,7 @@ def sample_sequence(logits):
     return sampled_indices, probabilities
 
 
-def plot_losses(train_losses, test_losses):
-    """
-    Plots the losses for the training and testing sets.
-
-    Args:
-    - train_losses: The training losses.
-    - test_losses: The testing losses.
-    """
-    # plotting the whole loss starting from the beginning of training
-    plt.figure(figsize=(5, 5))
-    plt.plot(train_losses, c='blue', label='train')
-    plt.plot(test_losses, c='orange', label='test')
-    plt.legend(loc="upper left")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title('losses')
-    plt.plot()
-
-
-def save_losses(train_losses, test_losses, loss_dir):
-    """
-    Saves the losses to a CSV file.
-
-    Args:
-    - train_losses: The training losses.
-    - test_losses: The testing losses.
-    - loss_dir: The directory to save the losses.
-    """
-    pd.DataFrame(train_losses).to_csv(loss_dir + '/train_losses.csv', index=False)
-    pd.DataFrame(test_losses).to_csv(loss_dir + '/test_losses.csv', index=False)
-
-
-def train_on_paradetox(student_model,
+def train_on_paradetox(model,
                        judge_model,
                        tokenizer,
                        judge_tokenizer,
@@ -303,16 +295,17 @@ def train_on_paradetox(student_model,
                        device,
                        lambda_tox,
                        lambda_bert,
-                       weights_dir='weights/',
-                       loss_dir='losses'):
+                       weights_dir,
+                       metrics_dir,
+                       save_frequency):
     """
     Trains a model on the dataset using both Maximum Likelihood and
     Reinforcement Learning losses.
 
     Args:
-    - student_model: The model to train.
+    - model: The model to train.
     - judge_model: The model to use as a judge for politeness.
-    - tokenizer: The tokenizer to use.
+    - tokenizer: The tokenizer of the main model.
     - judge_tokenizer: The tokenizer to use for the judge model.
     - judge_threshold: The threshold of the judge.
     - fluency_pipeline: The pipeline to compute the fluency
@@ -326,18 +319,23 @@ def train_on_paradetox(student_model,
     - lambda_tox: The weight to give to the politeness score.
     - lambda_bert: The weight to give to the BERT score.
     - weights_dir: The directory to save the model weights.
-    - loss_dir: The directory to save the losses.
+    - metrics_dir: The directory to save the metrics.
+    - save_frequency: The frequency to save the weights
     """
 
+    # Create new directories for weights
+    unique_name = str(datetime.now())[:-7].replace(' ', ',').replace(':', '-') + '/'
     if not os.path.exists(weights_dir):
         os.makedirs(weights_dir)
-    weights_dir += str(datetime.now())[:-7].replace(" ", ",").replace(":", "-") + "/"
+    weights_dir += unique_name
     os.makedirs(weights_dir)
 
-    if not os.path.exists(loss_dir):
-        os.makedirs(loss_dir)
-    loss_dir += str(datetime.now())[:-7].replace(" ", ",").replace(":", "-") + "/"
-    os.makedirs(loss_dir)
+    # Create new directories for metrics
+    if not os.path.exists(metrics_dir):
+        os.makedirs(metrics_dir)
+    metrics_dir += unique_name
+    os.makedirs(metrics_dir)
+    metrics_file_path = os.path.join(metrics_dir, 'metrics.txt')
 
     metrics = {'loss': [],
                'bleu': [],
@@ -346,11 +344,9 @@ def train_on_paradetox(student_model,
                'fl': [],
                'j': []}
 
-    metrics_file_path = os.path.join(loss_dir, 'metrics.txt')
-
     for epoch in range(num_epochs):
         # Preparing for training
-        student_model.train()
+        model.train()
         judge_model.eval()
         total_loss = 0.0
 
@@ -360,30 +356,28 @@ def train_on_paradetox(student_model,
 
             # Getting input, label and mask
             input_ids, detoxified_ids, input_mask = batch
-            batch_size = input_ids.size(0)
 
             # Putting model inputs on device
             input_ids = input_ids.to(device)
             detoxified_ids = detoxified_ids.to(device)
             input_mask = input_mask.to(device)
 
-            # Feeding to student model
-            g_student_outputs = student_model(input_ids=input_ids, attention_mask=input_mask, labels=detoxified_ids)
+            # Feeding to main model
+            g_model_outputs = model(input_ids=input_ids, attention_mask=input_mask, labels=detoxified_ids)
 
             # Computing Maximum Likelihood loss (usual loss)
-            ml_loss = g_student_outputs.loss
+            ml_loss = g_model_outputs.loss
             full_loss = ml_loss
             if alpha != 0:
                 # Decoding to greedy sequence to compute RL loss
-                g_output_sequences = tokenizer.batch_decode(g_student_outputs.logits.argmax(dim=-1),
+                g_output_sequences = tokenizer.batch_decode(g_model_outputs.logits.argmax(dim=-1),
                                                             skip_special_tokens=True)
-                gold_sequences = tokenizer.batch_decode(detoxified_ids, skip_special_tokens=True)
 
-                # Sampling from student model for RL loss
-                s_student_outputs, s_student_probas = sample_sequence(g_student_outputs.logits)
+                # Sampling from main model for RL loss
+                s_model_outputs, s_model_probas = sample_sequence(g_model_outputs.logits)
 
-                # Decodng to sampled sequence to compute RL loss
-                s_output_sequences = tokenizer.batch_decode(s_student_outputs, skip_special_tokens=True)
+                # Decoding to sampled sequence to compute RL loss
+                s_output_sequences = tokenizer.batch_decode(s_model_outputs, skip_special_tokens=True)
 
                 # Decoding reference sequence for RL loss
                 gold_sequences = tokenizer.batch_decode(detoxified_ids, skip_special_tokens=True)
@@ -391,7 +385,7 @@ def train_on_paradetox(student_model,
                 # Computing Reinforcement Learning loss
                 rl_loss = compute_rl_loss(judge_model,
                                           judge_tokenizer,
-                                          s_student_probas,
+                                          s_model_probas,
                                           g_output_sequences,
                                           s_output_sequences,
                                           gold_sequences,
@@ -409,46 +403,28 @@ def train_on_paradetox(student_model,
 
             total_loss += full_loss.item()
 
-        # Save model weights
-        torch.save(student_model.state_dict(), "./" + weights_dir + 'model_epoch' + str(epoch) + '.pth')
-        # Save optimizer state
-        torch.save(optimizer.state_dict(), "./" + weights_dir + "optimizer_epoch" + str(epoch) + ".pth")
-
         average_loss = total_loss / len(dataloader)
-        print(f"Epoch {epoch + 1}, Average train Loss: {average_loss:.4f}")
-        print(f'Evaluating on test set...')
-        eval_loss, eval_metrics = evaluate(student_model, tokenizer, judge_model, judge_tokenizer, judge_threshold,
-                                           val_dataloader, fluency_pipeline, similarity_model, device)
-        # Store eval metrics
-        metrics['loss'].append(eval_loss)
-        metrics['bleu'].append(eval_metrics['bleu'])
-        metrics['sta'].append(eval_metrics['sta'])
-        metrics['sim'].append(eval_metrics['sim'])
-        metrics['fl'].append(eval_metrics['fl'])
-        metrics['j'].append(eval_metrics['j'])
+        print(f'Epoch {epoch + 1}, Average train Loss: {average_loss:.4f}')
 
-        with open(metrics_file_path, 'a') as f:
-            f.write(f'Epoch {epoch + 1}: Loss {eval_loss:.4f}, BLEU {eval_metrics["bleu"]:.4f}, STA {eval_metrics["sta"]:.4f}, SIM {eval_metrics["sim"]:.4f}, FL {eval_metrics["fl"]:.4f}, J {eval_metrics["j"]:.4f}\n')
+        if epoch % save_frequency == 0:
+            print('Saving model weights and optimizer state...')
+            # Save model weights
+            torch.save(model.state_dict(), './' + weights_dir + 'model_epoch' + str(epoch) + '.pt')
+            # Save optimizer state
+            torch.save(optimizer.state_dict(), './' + weights_dir + 'optimizer_epoch' + str(epoch) + '.pt')
 
-        for metric, values in metrics.items():
-            plt.figure(figsize=(10, 5))
-            plt.plot(range(1, epoch+2), values, label=f'Epoch vs {metric}')
-            plt.xlabel('Epoch')
-            plt.ylabel(metric)
-            plt.title(f'Epoch vs {metric}')
-            plt.legend()
-            plt.savefig(os.path.join(loss_dir, f'{metric}_epoch_{epoch + 1}.png'))
-            plt.close()
+            print(f'Evaluating on test set...')
+            eval_loss, eval_metrics = evaluate(model, tokenizer, judge_model, judge_tokenizer, judge_threshold,
+                                               val_dataloader, fluency_pipeline, similarity_model, device)
+            # Store eval metrics
+            metrics['loss'].append(eval_loss)
+            metrics['bleu'].append(eval_metrics['bleu'])
+            metrics['sta'].append(eval_metrics['sta'])
+            metrics['sim'].append(eval_metrics['sim'])
+            metrics['fl'].append(eval_metrics['fl'])
+            metrics['j'].append(eval_metrics['j'])
+            store_metrics(eval_loss, eval_metrics, epoch, metrics_file_path)
 
-        plt.figure(figsize=(10, 5))
-        for metric, values in metrics.items():
-            plt.plot(range(1, epoch+2), values, label=metric)
-
-        plt.xlabel('Epoch')
-        plt.ylabel('Metric Score')
-        plt.title('Training Metrics Over Epochs')
-        plt.legend(loc='upper left')
-        plt.savefig(os.path.join(loss_dir, f'combined_metrics_epoch_{epoch + 1}.png'))
-        plt.close()
-
-        print('\n')
+            # Plot the metrics
+            plot_metrics(metrics, epoch, metrics_dir, save_frequency)
+            print('\n')
