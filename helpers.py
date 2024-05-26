@@ -346,6 +346,8 @@ def train_on_paradetox(student_model,
                'fl': [],
                'j': []}
 
+    metrics_file_path = os.path.join(loss_dir, 'metrics.txt')
+
     for epoch in range(num_epochs):
         # Preparing for training
         student_model.train()
@@ -425,7 +427,30 @@ def train_on_paradetox(student_model,
         metrics['fl'].append(eval_metrics['fl'])
         metrics['j'].append(eval_metrics['j'])
 
-        # Save a plot of the metrics
-        # TODO
+        with open(metrics_file_path, 'a') as f:
+            f.write(f'Epoch {epoch + 1}: Loss {eval_loss:.4f}, BLEU {eval_metrics["bleu"]:.4f}, STA {eval_metrics["sta"]:.4f}, SIM {eval_metrics["sim"]:.4f}, FL {eval_metrics["fl"]:.4f}, J {eval_metrics["j"]:.4f}\n')
+
+        for metric, values in metrics.items():
+            plt.figure(figsize=(10, 5))
+            plt.plot(range(1, epoch+2), values, label=f'Epoch vs {metric}')
+            plt.xlabel('Epoch')
+            plt.ylabel(metric)
+            plt.title(f'Epoch vs {metric}')
+            plt.legend()
+            plt.grid(True)
+            plt.savefig(os.path.join(loss_dir, f'{metric}_epoch_{epoch + 1}.png'))
+            plt.close()
+
+        plt.figure(figsize=(10, 5))
+        for metric, values in metrics.items():
+            plt.plot(range(1, epoch+2), values, label=metric)
+
+        plt.xlabel('Epoch')
+        plt.ylabel('Metric Score')
+        plt.title('Training Metrics Over Epochs')
+        plt.legend(loc='upper left')
+        plt.grid(True)
+        plt.savefig(os.path.join(loss_dir, f'combined_metrics_epoch_{epoch + 1}.png'))
+        plt.close()
 
         print('\n')

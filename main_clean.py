@@ -3,6 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, AutoModel, \
     RobertaTokenizer, RobertaForSequenceClassification, pipeline
+from peft import get_peft_model, LoraConfig, TaskType
 from torch.utils.data.dataset import random_split
 from helpers import format_data
 from helpers import train_on_paradetox
@@ -34,14 +35,26 @@ if __name__ == '__main__':
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Running on {device}")
 
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        inference_mode=False,
+        r=8,
+        lora_alpha=32,
+        lora_dropout=0.1
+    )
+
     # BART MODEL (STUDENT)
-    student_tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model_name = "facebook/bart-base"
+    student_tokenizer = AutoTokenizer.from_pretrained(model_name)
     student_tokenizer.pad_token_id = student_tokenizer.eos_token_id
-    student_model = AutoModelForCausalLM.from_pretrained(MODEL_NAME).to(device)
-    # Load the weights of the model from the checkpoint if we are resuming training
+    student_model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+
     if CHECKPOINT_MODEL:
         print("Restoring model weights from checkpoint")
         student_model.load_state_dict(torch.load(CHECKPOINT_DIR + CHECKPOINT_MODEL, map_location=device))
+
+    student_model = get_peft_model(student_model, peft_config)
+    student_model.print_trainable_parameters()
 
     # POLITENESS JUDGE
     classifier_tokenizer = RobertaTokenizer.from_pretrained(CLASSIFIER_NAME)
